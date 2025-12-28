@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en" x-data="dashboard()" :class="{ 'dark': darkMode }">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MatrixPro | Correlation Intelligence Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        /* Custom scrollbar for the matrix */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .matrix-cell {
+            transition: transform 0.15s ease, filter 0.15s ease, opacity 0.3s ease;
+            cursor: crosshair;
+        }
+        
+        .matrix-cell:hover {
+            z-index: 10;
+            filter: brightness(1.1);
+        }
+
+        .transition-theme {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Optimization for large grid */
+        .grid-container {
+            contain: paint;
+        }
+
+        input[type=range] {
+            accent-color: #4f46e5;
+        }
+
+        /* Remove arrows from number input */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        corrPosHigh: '#10b981',
+                        corrPosMed: '#34d399',
+                        corrNeut: '#9ca3af',
+                        corrNegMed: '#f87171',
+                        corrNegHigh: '#ef4444',
+                        slate: {
+                            950: '#020617'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-theme min-h-screen font-sans selection:bg-indigo-500 selection:text-white">
+
+    <!-- Header Navigation -->
+    <header class="sticky top-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-theme">
+        <div class="max-w-[1800px] mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-4 cursor-pointer" data-goto="dashboard_main">
+                <div class="bg-indigo-600 p-2 rounded-lg text-white">
+                    <i class="fas fa-chart-network text-xl"></i>
+                </div>
+                <h1 class="font-bold text-xl tracking-tight hidden md:block">Matrix<span class="text-indigo-600">Pro</span></h1>
+            </div>
+
+            <div class="flex items-center gap-4 md:gap-6">
+                <!-- Timeframe Switcher -->
+                <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg transition-theme">
+                    <button 
+                        @click="timeframe = 'daily'"
+                        :class="timeframe === 'daily' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition-all">
+                        Daily
+                    </button>
+                    <button 
+                        @click="timeframe = '4h'"
+                        :class="timeframe === '4h' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                        class="px-3 py-1.5 text-xs font-medium rounded-md transition-all">
+                        4H
+                    </button>
+                </div>
+
+                <!-- Theme Toggle Button -->
+                <button @click="darkMode = !darkMode" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 hover:ring-2 ring-indigo-500/50 transition-all">
+                    <i x-show="!darkMode" class="fas fa-moon text-slate-600"></i>
+                    <i x-show="darkMode" class="fas fa-sun text-amber-400" x-cloak></i>
+                </button>
+
+                <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-indigo-500/20" data-goto="export_dialog">
+                    <i class="fas fa-download mr-2"></i>Export
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-[1800px] mx-auto p-4 md:p-6 lg:p-8">
+        <!-- Breadcrumbs & Meta -->
+        <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+                <p class="text-indigo-600 dark:text-indigo-400 text-sm font-semibold mb-1 uppercase tracking-wider">Institutional Grade Analytics</p>
+                <h2 class="text-3xl font-extrabold tracking-tight">Full Asset Universe Correlation</h2>
+                <p class="text-slate-500 dark:text-slate-400 mt-2 max-w-2xl leading-relaxed">
+                    Analyzing 50 assets and 2,500 unique relationships. Define your thresholds precisely below to identify regime shifts.
+                </p>
+            </div>
+            <div class="flex items-center gap-4 text-[10px] md:text-xs font-medium text-slate-400 uppercase tracking-widest">
+                <span class="flex items-center gap-1.5"><i class="fas fa-circle text-[8px] text-green-500 animate-pulse"></i> Live Engine</span>
+                <span class="flex items-center gap-1.5 border-l border-slate-300 dark:border-slate-700 pl-4"><i class="fas fa-clock"></i> Updated: Just Now</span>
+            </div>
+        </div>
+
+        <!-- ENHANCED: Correlation Filter Panel with Manual Input -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 mb-8 shadow-xl transition-theme">
+            <div class="flex flex-col xl:flex-row items-center gap-8">
+                <div class="flex-shrink-0 w-full xl:w-auto">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-600/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                            <i class="fas fa-sliders text-lg"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-sm uppercase tracking-tight">Precision Filters</h3>
+                            <p class="text-[10px] text-slate-500">Isolate market regimes by percentage</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button @click="minCorr = 80; maxCorr = 100" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-md transition-all uppercase">Most Correlated</button>
+                        <button @click="minCorr = -100; maxCorr = -80" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-md transition-all uppercase">Least Correlated</button>
+                        <button @click="minCorr = -10; maxCorr = 10" class="px-3 py-1.5 bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 dark:text-slate-400 text-[10px] font-bold rounded-md transition-all uppercase">Decoupled</button>
+                        <button @click="minCorr = -100; maxCorr = 100" class="px-3 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-400 text-[10px] font-bold rounded-md transition-all uppercase hover:bg-slate-100 dark:hover:bg-slate-800">Reset</button>
+                    </div>
+                </div>
+
+                <div class="flex-1 w-full">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
+                        <!-- Min Control -->
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-end">
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Min Correlation (%)</label>
+                                <div class="relative group">
+                                    <input 
+                                        type="number" 
+                                        x-model.number="minCorr" 
+                                        min="-100" 
+                                        max="100"
+                                        class="w-20 bg-slate-100 dark:bg-slate-800 border-b-2 border-transparent focus:border-indigo-500 outline-none text-right px-2 py-1 text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400 transition-all rounded"
+                                    >
+                                    <span class="absolute -top-6 right-0 text-[9px] text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">Type to edit</span>
+                                </div>
+                            </div>
+                            <input type="range" min="-100" max="100" x-model.number="minCorr" class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <!-- Max Control -->
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-end">
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Max Correlation (%)</label>
+                                <div class="relative group">
+                                    <input 
+                                        type="number" 
+                                        x-model.number="maxCorr" 
+                                        min="-100" 
+                                        max="100"
+                                        class="w-20 bg-slate-100 dark:bg-slate-800 border-b-2 border-transparent focus:border-indigo-500 outline-none text-right px-2 py-1 text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400 transition-all rounded"
+                                    >
+                                    <span class="absolute -top-6 right-0 text-[9px] text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">Type to edit</span>
+                                </div>
+                            </div>
+                            <input type="range" min="-100" max="100" x-model.number="maxCorr" class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-shrink-0 flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 w-full xl:w-auto">
+                    <div class="flex-1 text-center xl:text-left">
+                        <p class="text-[9px] font-bold text-slate-500 uppercase">Engine Status</p>
+                        <div class="mt-1">
+                            <button 
+                                @click="filterActive = !filterActive"
+                                :class="filterActive ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-700 text-slate-400'"
+                                class="w-full px-6 py-2 rounded-lg text-[10px] font-black transition-all shadow-sm border border-slate-200 dark:border-slate-600">
+                                <span x-text="filterActive ? 'ISOLATION ACTIVE' : 'GLOBAL VIEW'"></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="h-10 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
+                    <div class="text-center px-4">
+                        <p class="text-[9px] font-bold text-slate-500 uppercase">Matches</p>
+                        <p class="text-xl font-black text-indigo-600 dark:text-indigo-400" x-text="countMatches()"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Matrix Summary Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-theme shadow-sm">
+                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Active Pairs</span>
+                <p class="text-slate-900 dark:text-white font-black text-xl md:text-2xl">2,500</p>
+            </div>
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-theme shadow-sm border-l-4 border-l-emerald-500">
+                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Direct Match (>0.8)</span>
+                <p class="text-emerald-500 font-black text-xl md:text-2xl">114</p>
+            </div>
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-theme shadow-sm border-l-4 border-l-rose-500">
+                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Inverse Match (<-0.8)</span>
+                <p class="text-rose-500 font-black text-xl md:text-2xl">48</p>
+            </div>
+            <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-theme shadow-sm border-l-4 border-l-indigo-500">
+                <span class="text-[10px] text-slate-500 uppercase font-bold tracking-tight">Avg Absolute Corr</span>
+                <p class="text-indigo-500 font-black text-xl md:text-2xl">0.42</p>
+            </div>
+        </div>
+
+        <!-- Main Heatmap Matrix -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden transition-theme grid-container">
+            <div class="overflow-auto max-h-[700px] custom-scrollbar">
+                <table class="w-full border-separate border-spacing-0">
+                    <thead class="sticky top-0 z-40 shadow-sm">
+                        <tr>
+                            <th class="sticky left-0 z-50 bg-white dark:bg-slate-900 p-3 border-b border-r border-slate-200 dark:border-slate-800 text-left min-w-[120px] transition-theme">
+                                <span class="text-[10px] text-indigo-500 font-black tracking-widest uppercase">ASSET UNIVERSE</span>
+                            </th>
+                            <template x-for="(symbol, index) in symbols" :key="symbol">
+                                <th 
+                                    :class="hoveredCol === index ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400'"
+                                    class="p-2 border-b border-r border-slate-200 dark:border-slate-800 min-w-[70px] text-center transition-all">
+                                    <span x-text="symbol" class="text-[9px] font-bold uppercase tracking-tighter whitespace-nowrap block rotate-[-45deg] py-4"></span>
+                                </th>
+                            </template>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(rowSymbol, rowIndex) in symbols" :key="rowSymbol">
+                            <tr class="group">
+                                <!-- Row Header -->
+                                <th 
+                                    :class="hoveredRow === rowIndex ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'"
+                                    class="sticky left-0 z-30 p-2 border-b border-r border-slate-200 dark:border-slate-800 text-left text-[10px] font-bold transition-all transition-theme uppercase tracking-tighter whitespace-nowrap">
+                                    <div class="flex items-center gap-2">
+                                        <div :class="hoveredRow === rowIndex ? 'bg-indigo-500 scale-y-110' : 'bg-slate-200 dark:bg-slate-700'" class="w-1 h-3 rounded-full transition-all"></div>
+                                        <span x-text="rowSymbol"></span>
+                                    </div>
+                                </th>
+
+                                <!-- Data Cells -->
+                                <template x-for="(colSymbol, colIndex) in symbols" :key="colSymbol">
+                                    <td 
+                                        @mouseenter="hoveredRow = rowIndex; hoveredCol = colIndex"
+                                        @mouseleave="hoveredRow = null; hoveredCol = null"
+                                        :class="{
+                                            'ring-2 ring-indigo-500 z-10': hoveredRow === rowIndex && hoveredCol === colIndex,
+                                            'opacity-10': filterActive && !isMatch(getCorrelation(rowIndex, colIndex))
+                                        }"
+                                        class="p-0 border-b border-r border-slate-100 dark:border-slate-800/40 transition-all duration-150 relative">
+                                        
+                                        <!-- Cell Content -->
+                                        <div 
+                                            class="w-full h-10 flex items-center justify-center matrix-cell"
+                                            :style="getCellStyle(getCorrelation(rowIndex, colIndex))">
+                                            
+                                            <span 
+                                                class="text-[9px] font-bold" 
+                                                x-show="shouldShowText(getCorrelation(rowIndex, colIndex))"
+                                                x-text="formatPercentage(getCorrelation(rowIndex, colIndex))">
+                                            </span>
+                                            
+                                            <!-- Highlight indicator -->
+                                            <div x-show="hoveredRow === rowIndex && hoveredCol === colIndex" 
+                                                 class="absolute inset-0 bg-white/10 pointer-events-none"></div>
+                                        </div>
+                                    </td>
+                                </template>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Detail Insight Panel -->
+        <div class="mt-8 grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="lg:col-span-3 bg-slate-900 dark:bg-indigo-950/40 rounded-2xl p-6 md:p-8 text-white shadow-xl overflow-hidden relative transition-theme border border-white/5">
+                <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 h-full">
+                    <div class="flex-1">
+                        <template x-if="hoveredRow !== null && hoveredCol !== null">
+                            <div class="animate-fadeIn">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="px-2 py-0.5 rounded bg-indigo-500 text-[10px] font-bold uppercase tracking-wider">Correlation Deep Dive</span>
+                                    <i class="fas fa-bolt text-amber-400"></i>
+                                </div>
+                                <h3 class="text-3xl font-black mb-2 flex items-center gap-4">
+                                    <span x-text="symbols[hoveredRow]"></span> 
+                                    <i class="fas fa-link text-indigo-400 text-lg"></i> 
+                                    <span x-text="symbols[hoveredCol]"></span>
+                                </h3>
+                                <div class="flex items-baseline gap-2 mb-6">
+                                    <span class="text-5xl font-mono font-black text-indigo-300" x-text="formatPercentageDetail(getCorrelation(hoveredRow, hoveredCol))"></span>
+                                    <span class="text-indigo-400 font-bold uppercase text-xs" x-text="getDescriptor(getCorrelation(hoveredRow, hoveredCol))"></span>
+                                </div>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+                                    <div class="bg-white/5 p-3 rounded-lg">
+                                        <span class="block text-[10px] text-slate-400 uppercase font-bold mb-1">Stability Score</span>
+                                        <span class="text-sm font-bold">88.4 / 100</span>
+                                    </div>
+                                    <div class="bg-white/5 p-3 rounded-lg">
+                                        <span class="block text-[10px] text-slate-400 uppercase font-bold mb-1">Market Regime</span>
+                                        <span class="text-sm font-bold">Risk-Off Pivot</span>
+                                    </div>
+                                    <div class="bg-white/5 p-3 rounded-lg">
+                                        <span class="block text-[10px] text-slate-400 uppercase font-bold mb-1">Significance (p)</span>
+                                        <span class="text-sm font-bold text-emerald-400">&lt; 0.001</span>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-3">
+                                    <button class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl text-xs font-bold transition-all shadow-lg flex items-center gap-2" data-goto="pair_analytics">
+                                        <i class="fas fa-chart-line"></i> Full Analytics Report
+                                    </button>
+                                    <button class="bg-white/10 hover:bg-white/20 border border-white/20 px-6 py-3 rounded-xl text-xs font-bold transition-all" data-goto="regression_matrix">
+                                        Export CSV
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="hoveredRow === null">
+                            <div class="flex flex-col justify-center h-full py-10">
+                                <div class="w-16 h-16 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mb-6">
+                                    <i class="fas fa-radar text-indigo-400 text-2xl animate-pulse"></i>
+                                </div>
+                                <h3 class="text-3xl font-black mb-3 italic tracking-tight">Select Intersection...</h3>
+                                <p class="text-slate-400 text-base opacity-90 leading-relaxed max-w-xl">
+                                    Hover over any cell in the 50x50 matrix to see precise mathematical relationships. This engine scans 2,500 pairs every 500ms to detect decoupling events and structural shifts in global asset behavior.
+                                </p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Anomalies Sidebar -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-lg transition-theme">
+                <h4 class="font-bold flex items-center gap-2 mb-6">
+                    <i class="fas fa-magnifying-glass-chart text-indigo-500"></i> Regime Alerts
+                </h4>
+                <div class="space-y-4">
+                    <div class="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold text-emerald-600 uppercase">Extreme Sync</span>
+                            <span class="text-[10px] text-slate-400">H1</span>
+                        </div>
+                        <p class="text-xs font-bold dark:text-white">Gold / Silver Correlation</p>
+                        <div class="mt-2 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-emerald-500" style="width: 96%"></div>
+                        </div>
+                        <span class="text-[10px] font-mono mt-1 block">+0.96</span>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-rose-500/5 border border-rose-500/20">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold text-rose-600 uppercase">Decoupling</span>
+                            <span class="text-[10px] text-slate-400">D1</span>
+                        </div>
+                        <p class="text-xs font-bold dark:text-white">BTC / Nasdaq 100</p>
+                        <div class="mt-2 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-rose-500" style="width: 15%"></div>
+                        </div>
+                        <span class="text-[10px] font-mono mt-1 block">+0.15 (from 0.72)</span>
+                    </div>
+
+                    <div class="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/20">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] font-bold text-indigo-600 uppercase">Inverse Peak</span>
+                            <span class="text-[10px] text-slate-400">W1</span>
+                        </div>
+                        <p class="text-xs font-bold dark:text-white">Dollar Index / EUR/USD</p>
+                        <div class="mt-2 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-indigo-500" style="width: 98%"></div>
+                        </div>
+                        <span class="text-[10px] font-mono mt-1 block">-0.98</span>
+                    </div>
+                </div>
+                
+                <button class="w-full mt-6 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all uppercase tracking-widest" data-goto="anomaly_explorer">
+                    View All Abnormalities
+                </button>
+            </div>
+        </div>
+
+        <footer class="mt-16 pt-8 pb-12 border-t border-slate-200 dark:border-slate-800 transition-theme">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-microchip text-slate-500"></i>
+                    </div>
+                    <span class="text-[11px] font-bold text-slate-500 tracking-[0.2em] uppercase">MatrixPro Engine v4.2.0</span>
+                </div>
+                <div class="flex gap-6">
+                    <i class="fab fa-twitter text-slate-400 hover:text-indigo-500 cursor-pointer transition-colors"></i>
+                    <i class="fab fa-github text-slate-400 hover:text-indigo-500 cursor-pointer transition-colors"></i>
+                    <i class="fas fa-envelope text-slate-400 hover:text-indigo-500 cursor-pointer transition-colors"></i>
+                </div>
+                <p class="text-slate-500 text-[10px] font-medium uppercase tracking-wider">
+                    © 2024 QUANT CORE SYSTEMS
+                </p>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        function dashboard() {
+            // Asset universe
+            const assetList = [
+                "USD/CAD", "USD/CHF", "USD/CNH", "USD/DKK", "USD/JPY", 
+                "USD/MXN", "USD/NOK", "USD/SEK", "USD/ZAR", "EUR/AUD", 
+                "EUR/CAD", "EUR/CHF", "EUR/GBP", "EUR/JPY", "EUR/NOK", 
+                "EUR/NZD", "EUR/SEK", "EUR/USD", "AUD/CAD", "AUD/CHF", 
+                "AUD/JPY", "AUD/NZD", "AUD/USD", "GBP/AUD", "GBP/CAD", 
+                "GBP/CHF", "GBP/JPY", "GBP/NZD", "GBP/USD", "CAD/CHF", 
+                "CAD/JPY", "CHF/JPY", "NZD/CAD", "NZD/CHF", "NZD/JPY", 
+                "NZD/USD", "S&P 500", "Nikkei 225", "Nasdaq 100", 
+                "Russell 2000", "DAX", "Dow Jones", "Gold", "Silver", 
+                "Copper", "Palladium", "Platinum", "Dollar Index", 
+                "Crude Oil", "Natural Gas"
+            ];
+
+            return {
+                darkMode: true,
+                timeframe: 'daily',
+                symbols: assetList,
+                hoveredRow: null,
+                hoveredCol: null,
+                
+                // Filter states
+                minCorr: -100,
+                maxCorr: 100,
+                filterActive: false,
+
+                // Check if value matches filter
+                isMatch(val) {
+                    const perc = val * 100;
+                    const min = parseFloat(this.minCorr);
+                    const max = parseFloat(this.maxCorr);
+                    
+                    const lower = Math.min(min, max);
+                    const upper = Math.max(min, max);
+                    
+                    return perc >= lower && perc <= upper;
+                },
+
+                countMatches() {
+                    let matches = 0;
+                    for(let r=0; r<50; r++) {
+                        for(let c=r+1; c<50; c++) {
+                            if(this.isMatch(this.getCorrelation(r,c))) matches++;
+                        }
+                    }
+                    return matches;
+                },
+
+                shouldShowText(val) {
+                    if (this.filterActive) return this.isMatch(val);
+                    return Math.abs(val) > 0.4;
+                },
+                
+                // Pseudo-random generation for demo
+                getCorrelation(row, col) {
+                    if (row === col) return 1.0;
+                    
+                    let combined = (row < col) ? `${row}-${col}` : `${col}-${row}`;
+                    let hash = 0;
+                    for (let i = 0; i < combined.length; i++) {
+                        hash = ((hash << 5) - hash) + combined.charCodeAt(i);
+                        hash |= 0;
+                    }
+                    
+                    let val = Math.sin(hash + (this.timeframe === '4h' ? 1.5 : 0)) * 0.95;
+                    
+                    const s1 = this.symbols[row];
+                    const s2 = this.symbols[col];
+                    
+                    const metals = ["Gold", "Silver", "Platinum", "Palladium"];
+                    if (metals.includes(s1) && metals.includes(s2)) val = Math.abs(val) * 0.4 + 0.6;
+                    
+                    const indices = ["S&P 500", "Nasdaq 100", "Dow Jones", "DAX", "Russell 2000"];
+                    if (indices.includes(s1) && indices.includes(s2)) val = Math.abs(val) * 0.3 + 0.7;
+
+                    const dxyInverses = ["EUR/USD", "GBP/USD", "AUD/USD", "NZD/USD", "Gold"];
+                    if ((s1 === "Dollar Index" && dxyInverses.includes(s2)) || (s2 === "Dollar Index" && dxyInverses.includes(s1))) {
+                        val = (Math.abs(val) * -0.5) - 0.45;
+                    }
+
+                    return Math.max(-1, Math.min(1, val));
+                },
+
+                formatPercentage(val) {
+                    return (val >= 0 ? '+' : '') + Math.round(val * 100);
+                },
+
+                formatPercentageDetail(val) {
+                    return (val >= 0 ? '+' : '') + (val * 100).toFixed(2) + '%';
+                },
+
+                getCellStyle(val) {
+                    let r, g, b;
+                    let absVal = Math.abs(val);
+                    
+                    if (val > 0.2) {
+                        r = 16; g = 185; b = 129;
+                    } else if (val < -0.2) {
+                        r = 244; g = 63; b = 94;
+                    } else {
+                        r = 148; g = 163; b = 184;
+                        absVal = 0.15;
+                    }
+                    
+                    let opacity = 0.1;
+                    if (Math.abs(val) > 0.3) opacity = 0.3;
+                    if (Math.abs(val) > 0.6) opacity = 0.6;
+                    if (Math.abs(val) > 0.85) opacity = 0.9;
+
+                    // Increase saturation if it's a match and filter is active
+                    if (this.filterActive && this.isMatch(val)) {
+                        opacity = Math.min(1, opacity + 0.3);
+                    }
+
+                    return {
+                        backgroundColor: `rgba(${r}, ${g}, ${b}, ${opacity})`,
+                        color: opacity > 0.6 ? 'white' : (this.darkMode ? 'rgba(255,255,255,0.7)' : 'rgba(15, 23, 42, 0.7)')
+                    };
+                },
+
+                getDescriptor(val) {
+                    const abs = Math.abs(val);
+                    if (val > 0.9) return 'Statistical Lockstep';
+                    if (val > 0.7) return 'Strong Correlation';
+                    if (val > 0.4) return 'Moderate Positive';
+                    if (abs <= 0.4) return 'Weak / Noise';
+                    if (val < -0.9) return 'Absolute Inverse';
+                    if (val < -0.7) return 'Strong Inverse';
+                    if (val < -0.4) return 'Moderate Inverse';
+                    return 'Regime Shift';
+                }
+            }
+        }
+    </script>
+
+<script>
+  // Pro Prototype - Static Navigation Shim
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-goto]');
+      if (target) {
+        e.preventDefault();
+        const pageId = target.getAttribute('data-goto');
+        // Navigate to the corresponding HTML file
+        window.location.href = pageId + '.html';
+      }
+    });
+  });
+</script>
+</body>
+</html>
