@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "topic": "build me a correlation website like this: https://www.myfxbook.com/forex-market/correlation\n\n- the website should only have 1 page which is the full page of the correlation symbols\n- the timeframe for user to switch for the correlation is daily and 4 hour\n- allow user to have the toggle to choose light mode and dark mode\n\n- i have prepared the symbols i want and use the list i provide below\n\nUSD/CAD\nUSD/CHF\nUSD/CNH\nUSD/DKK\nUSD/JPY\nUSD/MXN\nUSD/NOK\nUSD/SEK\nUSD/ZAR\nEUR/AUD\nEUR/CAD\nEUR/CHF\nEUR/GBP\nEUR/JPY\nEUR/NOK\nEUR/NZD\nEUR/SEK\nEUR/USD\nAUD/CAD\nAUD/CHF\nAUD/JPY\nAUD/NZD\nAUD/USD\nGBP/AUD\nGBP/CAD\nGBP/CHF\nGBP/JPY\nGBP/NZD\nGBP/USD\nCAD/CHF\nCAD/JPY\nCHF/JPY\nNZD/CAD\nNZD/CHF\nNZD/JPY\nNZD/USD\nS&P 500\nNikkei 225\nNasdaq 100\nRussell 2000\nDAX\nDow Jones\nGold\nSilver\nCopper\nPalladium\nPlatinum\nDollar Index\nCrude Oil\nNatural Gas",
+  "createdAt": "2025-12-28T07:26:24.435Z",
+  "pages": [
+    {
+      "id": "p1",
+      "title": "Interactive Correlation Matrix Dashboard",
+      "description": "A comprehensive single-page dashboard featuring a high-density correlation heatmap. The header contains a toggle for 'Light' and 'Dark' themes and a timeframe switcher for 'Daily' and '4 Hour' data sets. The main interface consists of a symmetrical grid matrix where both the X and Y axes are populated with the provided symbol list (USD/CAD, USD/CHF, S&P 500, Gold, etc.). Each intersection cell displays a correlation coefficient ranging from -1.00 to +1.00, color-coded for instant visual analysis: vibrant green for high positive correlation, deep red for high negative correlation, and neutral grey for weak correlations. Hovering over any cell highlights the corresponding row and column for easy tracking across the large dataset.",
+      "status": "completed",
+      "suggestedNavigation": [
+        "dashboard_main",
+        "export_dialog",
+        "anomaly_explorer"
+      ]
+    }
+  ]
+}
